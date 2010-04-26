@@ -1,0 +1,8 @@
+.manager
+.DS_Store
+.#*
+log/*
+*.pyc
+*.pyo
+*~
+*.egg-info
