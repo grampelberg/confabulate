@@ -20,6 +20,8 @@ def definitions():
     define('aws_secret', help='The AWS secret for your account.')
     define('num_processes', help='The number of processes to run under.',
            default=None, type=int)
+    define('sqs_base', help='The id of the account being used ' +
+           '(http://queue.amazonaws.com/sqs_base/queue_name')
     # serve.py
     define('port', default=8080, type=int, help="Port to start listening on.")
 

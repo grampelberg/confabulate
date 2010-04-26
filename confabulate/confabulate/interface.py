@@ -17,7 +17,9 @@ import logging
 import simpledb.simpledb
 import time
 import tornado.httpclient
+from tornado.options import options
 import urllib
+import urlparse
 from xml.etree import cElementTree as ElementTree
 
 import confabulate.utils
@@ -38,24 +40,25 @@ class Connection(object):
     signature_version = '2'
     signature_method = 'HmacSHA256'
     version = '2009-02-01'
+    transport = 'http'
     host = 'queue.amazonaws.com'
+    retry_length = 2
 
-    def __init__(self, key, secret):
-        self.key = key
-        self.secret = secret
+    def __init__(self, default_cb):
+        self.key = options.aws_key
+        self.secret = options.aws_secret
+        self.default_cb = default_cb
 
-    def queue(self, cb, name):
-        params = { 'Action': 'CreateQueue',
-                   'QueueName': name }
-        self._request('/', params)
+    def queue(self, name):
+        return Queue(name, self)
 
-    def list(self, cb, prefix=None):
+    def list(self, cb=None, prefix=None):
         params = { 'Action': 'ListQueues' }
         if prefix:
             params['QueueNamePrefix'] = prefix
-        self._request(cb, '/', params)
+        self._request('/', params)
 
-    def _request(self, cb, path, params):
+    def _request(self, path, params, cb=None):
         params.update({ 'AWSAccessKeyId': self.key,
                         'SignatureVersion': self.signature_version,
                         'SignatureMethod': self.signature_method,
@@ -67,32 +70,75 @@ class Connection(object):
         params['Signature'] = base64.b64encode(
             hmac.new(self.secret, base, hashlib.sha256).digest())
         tornado.httpclient.AsyncHTTPClient().fetch(
-            'http://queue.amazonaws.com/?%s' % (urlencode(params),),
+            '%s://%s%s?%s' % (self.transport, self.host, path,
+                              urlencode(params),),
             functools.partial(self._resp, cb))
 
-    def _resp(self, cb, resp):
-        if not resp.error:
-            cb(confabulate.utils.xml_to_dict(resp.body))
+    # XXX - Need to filter SenderId out
+    def _resp(self, cb=None, resp=None):
+        if resp.error:
+            if resp.error.code == 400:
+                self._error_handler(resp)
+        json = confabulate.utils.xml_to_dict(resp.body)
+        logging.info('aws.response', json)
+        if not cb:
+            return self.default_cb(json)
+        return cb(json)
+
+    def _error_handler(self, resp):
+        codes = {
+            "AWS.SimpleQueueService.NonExistentQueue": self._create_queue }
+        body = confabulate.utils.xml_to_dict(resp.body)
+        logging.info('aws.error\n%s' % (body,))
+        for code in body['Error']['Code']:
+            codes.get(code, self._error_default)(resp)
+
+    def _error_default(self, resp):
+        json = confabulate.utils.xml_to_dict(resp.body)
+        logging.info('aws.error.unhandled\n%s' % (json,))
+        return self.default_cb(json)
+
+    def _create_queue(self, resp):
+        self._request('/', {
+                'Action': 'CreateQueue',
+                'QueueName': urlparse.urlparse(
+                    resp.req.url).path.rsplit('/', 1)[-1] },
+                      functools.partial(self._complete_request, resp.req.url))
+
+    def _complete_request(self, url, resp):
+        tornado.ioloop.IOLoop.instance().add_timeout(
+            time.time() + 2, functools.partial(
+                tornado.httpclient.AsyncHTTPClient().fetch,
+                url, functools.partial(self._resp, None)))
 
 class Queue(object):
 
     def __init__(self, name, conn):
-        pass
+        self.conn = conn
+        self.name = name
+        self.path = '/%s/%s' % (options.sqs_base, self.name)
+        self.url = '%s://%s%s' % (self.conn.transport,
+                                  self.conn.host,
+                                  self.path)
 
     def attributes(self):
-        pass
+        self.conn._request(self.path, { 'Action': 'GetQueueAttributes' })
 
     def delete(self):
-        pass
+        self.conn._request(self.path, { 'Action': 'DeleteQueue' })
 
     def send_message(self, message):
-        pass
+        self.conn._request(self.path, {
+                'Action': 'SendMessage',
+                'MessageBody': tornado.escape.url_escape(message) })
 
     def receive_message(self, limit=10):
-        pass
+        self.conn._request(self.path, { 'Action': 'ReceiveMessage',
+                                        'MaxNumberOfMessages': str(limit)})
 
     def delete_message(self, id):
-        pass
+        self.conn._request(self.path, { 'Action': 'DeleteMessage',
+                                        'ReceiptHandle': id })
 
     def change_message_visibility(self):
         pass

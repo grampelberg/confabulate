@@ -16,6 +16,10 @@ import confabulate.interface
 class CallbackHandler(tornado.web.RequestHandler):
     """Adds in the ability to do optional callbacks for any request."""
 
+    def __init__(self, *args, **kwargs):
+        self.conn = confabulate.interface.Connection(self._serialize)
+        tornado.web.RequestHandler.__init__(self, *args, **kwargs)
+
     def prepare(self):
         self.cb = self.get_argument('callback', '')
         if self.cb:
@@ -34,18 +38,27 @@ class ListQueues(CallbackHandler):
 
     @tornado.web.asynchronous
     def get(self):
-        confabulate.interface.Connection(
-            options.aws_key, options.aws_secret).list(self._serialize)
+        self.conn.list(self._serialize)
 
-class QueueHandler(CallbackHandler):
-    """A simple handler than converts incoming requests into SQS queries."""
+class SendMessage(CallbackHandler):
+    """Send a message to SQS."""
 
+    @tornado.web.asynchronous
     def get(self, name):
-        pass
+        self.conn.queue(name).send_message(self.get_argument('message'))
 
-    def post(self):
-        pass
+class ReceiveMessage(CallbackHandler):
+    """Receive messages from a queue on SQS."""
 
-    def delete(self):
-        pass
+    @tornado.web.asynchronous
+    def get(self, name):
+        self.conn.queue(name).receive_message(
+            limit=str(self.get_argument('limit', '10')))
+
+class DeleteMessage(CallbackHandler):
+    """Delete a message from a queue on SQS."""
+
+    @tornado.web.asynchronous
+    def get(self, name):
+        self.conn.queue(name).delete_message(self.get_argument('id'))
 
