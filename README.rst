@@ -42,6 +42,7 @@ Install/Running
 ..
 
   python setup.py install
+
   python -m confabulate.serve --config_file=my_config_file.conf
 
 API
