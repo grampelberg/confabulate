@@ -28,24 +28,27 @@ sqs.fn = sqs.prototype = {
     this.host = host;
     return this;
   },
-  _request: function(queeue, action, data, cb) {
+  _request: function(queue, action, data, cb) {
     $.ajax({
-      url: this.method + '://' + host + '/' + queue + '/' + action,
+      url: this.method + '://' + this.host + '/' + queue + '/' + action,
       data: data,
       dataType: 'jsonp',
       success: cb
     });
   },
   send: function(to, msg, cb) {
+    cb = _.compose(cb, function(resp) {
+      return resp.SendMessageResult;
+    });
     this._request(to, 'send', { message: JSON.stringify(msg) }, cb);
   },
   recv: function(from, cb) {
-    _.compose(function(resp) {
+    cb = _.compose(cb, function(resp) {
       return _.map(resp.ReceiveMessageResult.Message, function(v) {
         v.body = JSON.parse(v.body[0]);
         return v;
       });
-    }, cb);
+    });
     this._request(from, 'receive', { }, cb);
   },
   remove: function(from, id, cb) {

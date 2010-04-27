@@ -78,7 +78,7 @@ class Connection(object):
     def _resp(self, cb=None, resp=None):
         if resp.error:
             if resp.error.code == 400:
-                self._error_handler(resp)
+                return self._error_handler(resp)
         json = confabulate.utils.xml_to_dict(resp.body)
         logging.info('aws.response', json)
         if not cb:
@@ -102,8 +102,9 @@ class Connection(object):
         self._request('/', {
                 'Action': 'CreateQueue',
                 'QueueName': urlparse.urlparse(
-                    resp.req.url).path.rsplit('/', 1)[-1] },
-                      functools.partial(self._complete_request, resp.req.url))
+                    resp.request.url).path.rsplit('/', 1)[-1] },
+                      functools.partial(self._complete_request,
+                                        resp.request.url))
 
     def _complete_request(self, url, resp):
         tornado.ioloop.IOLoop.instance().add_timeout(
