@@ -48,7 +48,7 @@ sqs.fn = sqs.prototype = {
     }, cb);
     this._request(from, 'receive', { }, cb);
   },
-  delete: function(from, id, cb) {
+  remove: function(from, id, cb) {
     this._request(from, 'delete', { id: id }, cb);
   }
 };
