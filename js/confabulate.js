@@ -44,12 +44,24 @@ sqs.fn = sqs.prototype = {
   },
   recv: function(from, cb) {
     cb = _.compose(cb, function(resp) {
+      if (resp.ReceiveMessageResult === null)
+        return [];
       return _.map(resp.ReceiveMessageResult.Message, function(v) {
-        v.body = JSON.parse(v.body[0]);
+        v.Body = JSON.parse(unescape(v.Body));
         return v;
       });
     });
     this._request(from, 'receive', { }, cb);
+  },
+  list: function(cb) {
+    cb = _.compose(cb, function(resp) {
+      return resp.ListQueuesResult;
+    });
+    $.ajax({
+      url: this.method + '://' + this.host + '/',
+      dataType: 'jsonp',
+      success: cb
+    });
   },
   remove: function(from, id, cb) {
     this._request(from, 'delete', { id: id }, cb);

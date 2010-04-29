@@ -23,7 +23,20 @@ $(document).ready(function() {
   $("#receive :button").click(function() {
     var queue = $("#receive .queue").val();
     aws_queue.recv(queue, function(resp) {
-      $("#result").text(resp);
+      $("#result").text(JSON.stringify(resp));
+    });
+  });
+  $("#remove :button").click(function() {
+    var queue = $("#remove .queue").val();
+    var msg = $("#remove .message").val();
+    aws_queue.send(queue, msg, function(resp) {
+      console.log(resp);
+      $("#result").text(JSON.stringify(resp));
+    });
+  });
+  $("#list :button").click(function() {
+    aws_queue.list(function(resp) {
+      $("#result").text(JSON.stringify(resp));
     });
   });
 });
