@@ -90,8 +90,7 @@ class Connection(object):
             "AWS.SimpleQueueService.NonExistentQueue": self._create_queue }
         body = confabulate.utils.xml_to_dict(resp.body)
         logging.info('aws.error\n%s' % (body,))
-        for code in body['Error']['Code']:
-            codes.get(code, self._error_default)(resp)
+        codes.get(body['Error']['Code'], self._error_default)(resp)
 
     def _error_default(self, resp):
         json = confabulate.utils.xml_to_dict(resp.body)
